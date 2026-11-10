@@ -11,7 +11,8 @@
     #solicitar  formulário público (envia para o fluxo HTTP do Power Automate)
     #painel     painel do DHO (login Microsoft, lê e edita as listas SharePoint pela Microsoft Graph)
 
-  Configuração: preencha o objeto CONFIG no início do <script> principal.
+  Configuração: preencha o objeto CONFIG no início do <script> principal (tenantId, clientId, siteUrl e flowUrl).
+  Com o login feito, o painel localiza sozinho o site e as listas pelo nome e grava direto nelas.
   Enquanto CONFIG estiver vazio, a página funciona em modo demonstração, com dados fictícios.
 
   Colunas esperadas na lista "Solicitações" (nome interno, tipo):
@@ -22,6 +23,7 @@
     Resumo (várias linhas) | Detalhes (várias linhas, JSON) | FaixaPDI (texto) | ValorPDI (número)
     Desfecho (escolha) | Pendencia (várias linhas) | PrevisaoEntrega (data)
     NotaConclusao (várias linhas) | ObservacoesInternas (várias linhas)
+    Categoria (texto) | Criticidade (escolha: Alta, Média, Baixa) | LinkEntregavel (várias linhas, texto simples)
   Colunas esperadas na lista "Interações":
     Title (protocolo) | SolicitacaoId (número, indexada) | TipoInteracao (escolha) | Mensagem (várias linhas) | Autor (texto)
   Se os nomes internos forem diferentes, ajuste CAMPOS no script; o restante do código não muda.
@@ -163,7 +165,7 @@ fieldset[disabled]{display:none}
 .seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
 .count{font-size:13px;color:var(--muted);margin-left:auto}
 .tablewrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);overflow-x:auto}
-table.grid{width:100%;border-collapse:collapse;font-size:14px;min-width:1240px}
+table.grid{width:100%;border-collapse:collapse;font-size:14px;min-width:1360px}
 table.grid td.c-tipo{min-width:230px}
 table.grid td.c-sol{min-width:170px}
 table.grid td.c-sol .sub{white-space:normal}
@@ -178,8 +180,8 @@ table.grid tbody tr.sel td{background:var(--accent-soft)}
 .sub{font-size:12.5px;color:var(--muted)}
 .inl{border:1px solid transparent;background:transparent;border-radius:var(--r-pill);padding:4px 26px 4px 10px;font-size:13px;font-weight:600;cursor:pointer;max-width:200px;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%233A3D40' stroke-width='1.5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center}
 .inl:hover{border-color:var(--line-2)}
-.inl.resp{font-weight:500;padding-left:8px;width:168px}
-select.inl.pill{width:184px;max-width:none;text-overflow:ellipsis}
+.inl.resp{font-weight:500;padding-left:8px;width:220px}
+select.inl.pill{width:172px;max-width:none;text-overflow:ellipsis}
 .st-Recebida{background:#fff;border-color:var(--ink)!important}
 .st-Em-triagem{background:#FFF4EA;border-color:var(--orange)!important}
 .st-Em-análise{background:var(--accent);}
@@ -196,6 +198,16 @@ select.inl.pill{width:184px;max-width:none;text-overflow:ellipsis}
 .sla.late{color:#C4113D} .sla.late::before{background:var(--coral)}
 .sla.fin{color:var(--muted);font-weight:500} .sla.fin::before{background:var(--stone)}
 .prio{font-size:12.5px;color:var(--muted)}
+.crit{display:inline-block;font-size:12px;font-weight:600;border-radius:var(--r-pill);padding:2px 10px;border:1px solid var(--line-2);white-space:nowrap}
+.crit-1{background:var(--coral-soft);border-color:var(--coral);color:#B0133A}
+.crit-2{background:#FFF4EA;border-color:var(--orange);color:#9A4D00}
+.crit-3{background:var(--bg);color:var(--muted)}
+.lnk{font-size:12.5px;font-weight:600;color:var(--ink);text-underline-offset:2px}
+.regra{font-size:13.5px;background:var(--bg);border-radius:var(--r-chip);padding:10px 12px;margin:-4px 0 18px;line-height:1.6}
+.regra .btn{margin-left:8px;vertical-align:middle}
+.sync{font-size:12.5px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+.sync.ok::before,.sync.err::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.sync.err{color:#B0133A} .sync.err::before{background:var(--coral)}
 .prio.p1{color:var(--terracota);font-weight:600}
 .empty{padding:48px;text-align:center;color:var(--muted)}
 
@@ -326,12 +338,12 @@ select.inl.pill{width:184px;max-width:none;text-overflow:ellipsis}
         <p class="lead" id="lead-detalhes">Quanto mais completo, mais rápida a análise.</p>
 
         <fieldset data-tipo="desenvolvimento" disabled>
-          <div class="field"><label for="d_classe">Alcance do treinamento</label>
+          <div class="field"><label for="d_classe">Tema do treinamento</label>
             <select id="d_classe" name="classe" required>
               <option value="">Selecione</option>
-              <option>Específico da minha área, cargo ou função</option>
-              <option>Institucional, para todo o grupo ou várias áreas</option>
-              <option>Legal ou regulatório (obrigatório)</option>
+              <option value="legal">Legal e regulatório: exigências legais, auditorias, compliance, riscos à operação, segurança da informação, saúde e segurança</option>
+              <option value="institucional">Institucional: projetos corporativos, transformações organizacionais, lançamentos estratégicos, mudanças relevantes de processos ou sistemas</option>
+              <option value="especifico">Específico de negócio ou área: conteúdo técnico para uma área, cargo ou função</option>
             </select><div class="hint">Tipos de treinamento descritos no item 3.6 da política.</div></div>
           <div class="field"><label for="d_titulo">Tema ou título provisório</label><input id="d_titulo" name="titulo" type="text" required></div>
           <div class="field"><label for="d_objetivo">Objetivo: o que as pessoas devem saber ou fazer depois</label><textarea id="d_objetivo" name="objetivo" required></textarea></div>
@@ -475,7 +487,7 @@ select.inl.pill{width:184px;max-width:none;text-overflow:ellipsis}
     <div id="demo-banner" class="demo-banner hidden"><span>Modo demonstração: dados fictícios. Nada é gravado no SharePoint e nenhum e-mail é enviado.</span><button class="btn small ghost" id="btn-sair-demo" type="button">Sair da demonstração</button></div>
     <div class="ph">
       <h1>Demandas de aprendizagem</h1>
-      <div class="who"><span id="who"></span><button class="btn small ghost" id="btn-reload" type="button">Atualizar</button><button class="btn small ghost" id="btn-logout" type="button">Sair</button></div>
+      <div class="who"><span id="sync" class="sync"></span><span id="who"></span><button class="btn small ghost" id="btn-reload" type="button">Atualizar</button><button class="btn small ghost" id="btn-logout" type="button">Sair</button></div>
     </div>
     <div class="kpis" id="kpis"></div>
     <div class="toolbar">
@@ -484,7 +496,9 @@ select.inl.pill{width:184px;max-width:none;text-overflow:ellipsis}
       <label class="sr" for="f-resp">Responsável</label><select id="f-resp"></select>
       <label class="sr" for="f-emp">Empresa</label><select id="f-emp"><option value="">Todas as empresas</option><option>V.tal</option><option>Tecto</option><option>Nio</option><option>Outra</option></select>
       <label class="sr" for="f-tipo">Tipo</label><select id="f-tipo"></select>
+      <label class="sr" for="f-crit">Criticidade</label><select id="f-crit"></select>
       <div class="seg" role="group" aria-label="Visualização"><button type="button" data-mode="lista" aria-pressed="true">Lista</button><button type="button" data-mode="quadro" aria-pressed="false">Quadro</button></div>
+      <button class="btn small ghost" id="btn-dist" type="button">Distribuir sem responsável</button>
       <button class="btn small ghost" id="btn-csv" type="button">Exportar CSV</button>
       <span class="count" id="count"></span>
     </div>
@@ -512,16 +526,25 @@ const CONFIG = {
   flowUrl: "",            // URL do gatilho HTTP do Power Automate (fluxo F1)
   tenantId: "",           // Directory (tenant) ID  (pedido P04)
   clientId: "",           // Application (client) ID (pedido P04)
-  siteId: "",             // ID do site SharePoint das listas (Graph Explorer)
-  listaSolicitacoes: "",  // ID da lista Solicitações
-  listaInteracoes: "",    // ID da lista Interações
-  // Pessoas que podem ser responsáveis. Nome e e-mail exatamente como os fluxos usam.
+  // Conexão com o SharePoint: basta o endereço do site; o painel encontra o site e as listas pelo nome.
+  siteUrl: "",            // ex.: "https://vtalcorp.sharepoint.com/teams/NomeDoSite"
+  nomeListaSolicitacoes: "Solicitações",
+  nomeListaInteracoes: "Interações",
+  // Opcional: IDs fixos, se preferir não buscar pelo nome.
+  siteId: "", listaSolicitacoes: "", listaInteracoes: "",
+  atualizarACadaSegundos: 60, // o painel relê a lista sozinho neste intervalo (0 desliga)
+  // Time de DHO. Nome e e-mail exatamente como os fluxos usam.
   equipe: [
-    // { nome: "Nome Sobrenome", email: "pessoa@dominio.com" },
+    { nome: "Aline Cavalcante Santana", email: "aline.santana@vtal.com" },
+    { nome: "Ana Beatriz Vilar De Oliveira", email: "ana.oliveira@niointernet.com.br" },
+    { nome: "Camilly Vitoria Machado", email: "camilly.machado@vtal.com" },
+    { nome: "Mila Pena De Goes", email: "mila.goes@niointernet.com.br" },
+    { nome: "Thamiris De Paula Costa Suzano", email: "thamiris.costa@niointernet.com.br" }
   ],
+  criticidades: ["Alta", "Média", "Baixa"], // mesmas opções da coluna Criticidade
   // Feriados (AAAA-MM-DD) para o cálculo de dias úteis do SLA. Use os mesmos da lista Feriados.
   feriados: [],
-  dominiosGrupo: [] // ex.: ["dominio1.com", "dominio2.com"]; vazio = não verifica no navegador
+  dominiosGrupo: [] // ex.: ["vtal.com", "niointernet.com.br"]; vazio = não verifica no navegador
 };
 
 // Nomes internos das colunas no SharePoint. Ajuste aqui se a lista usar outros nomes.
@@ -532,7 +555,8 @@ const CAMPOS = {
   prioridade:"Prioridade", criterio:"CriterioPrioridade", sla:"DataLimiteSLA",
   resumo:"Resumo", detalhes:"Detalhes", faixa:"FaixaPDI", valor:"ValorPDI",
   desfecho:"Desfecho", pendencia:"Pendencia", previsao:"PrevisaoEntrega",
-  nota:"NotaConclusao", obs:"ObservacoesInternas"
+  nota:"NotaConclusao", obs:"ObservacoesInternas",
+  categoria:"Categoria", criticidade:"Criticidade", linkEntregavel:"LinkEntregavel"
 };
 const CAMPOS_INT = { protocolo:"Title", solicitacaoId:"SolicitacaoId", tipo:"TipoInteracao", mensagem:"Mensagem", autor:"Autor" };
 
@@ -558,6 +582,33 @@ const STATUS_FINAIS = ["Concluída","Encaminhada para outra solução","Cancelad
 const STATUS_PRE_ANALISE = ["Recebida","Em triagem"]; // SLA do item 3.9 corre só aqui
 const PRIORIDADES = ["Obrigação legal ou regulatória","Risco ao negócio","Projeto estratégico do grupo","Impacto operacional"];
 const DESFECHOS = ["Solução de aprendizagem","Gestão do conhecimento","Outra ação organizacional"];
+const CLASSES = { legal:"Legal e regulatório", institucional:"Institucional", especifico:"Específico de negócio ou área" };
+
+/* ================================================================
+   DISTRIBUIÇÃO DAS DEMANDAS
+   Mesma regra que o fluxo F1 aplica. O painel usa para indicar e aplicar o responsável.
+   Rodízio: vai para quem tem menos demandas da categoria; empate segue a ordem da lista.
+   Sem regra (LNT, inclusão de terceiro, específico de outra empresa): triagem manual.
+   ================================================================ */
+const REGRAS = [
+  { categoria:"Legal e regulatório", se:d => d.tipo === "desenvolvimento" && d.classe === "legal", para:["camilly.machado@vtal.com"] },
+  { categoria:"Institucional", se:d => d.tipo === "desenvolvimento" && d.classe === "institucional", para:["thamiris.costa@niointernet.com.br","mila.goes@niointernet.com.br","aline.santana@vtal.com"] },
+  { categoria:"Específico de negócio V.tal ou Tecto", se:d => d.tipo === "desenvolvimento" && d.classe === "especifico" && ["V.tal","Tecto"].includes(d.empresa), para:["camilly.machado@vtal.com"] },
+  { categoria:"Específico de negócio Nio", se:d => d.tipo === "desenvolvimento" && d.classe === "especifico" && d.empresa === "Nio", para:["camilly.machado@vtal.com"] },
+  { categoria:"Suporte a treinamentos", se:d => ["plataforma","relatorio"].includes(d.tipo), para:["ana.oliveira@niointernet.com.br"] },
+  { categoria:"Plano de Desenvolvimento Individual", se:d => d.tipo === "pdi", para:["aline.santana@vtal.com"] }
+];
+const CATEGORIA_TRIAGEM = "Triagem manual";
+const regraDe = d => REGRAS.find(r => r.se(d)) || null;
+const pessoaPorEmail = e => CONFIG.equipe.find(p => p.email.toLowerCase() === String(e).toLowerCase()) || { nome:e, email:e };
+function responsavelPelaRegra(d, itens=[]){
+  const r = regraDe(d);
+  if (!r) return { categoria:CATEGORIA_TRIAGEM, pessoa:null };
+  if (r.para.length === 1) return { categoria:r.categoria, pessoa:pessoaPorEmail(r.para[0]) };
+  const carga = r.para.map(e => itens.filter(i => i.id !== d.id && i.categoria === r.categoria && String(i.respEmail).toLowerCase() === e).length);
+  const idx = carga.indexOf(Math.min(...carga));
+  return { categoria:r.categoria, pessoa:pessoaPorEmail(r.para[idx]), rodizio:true };
+}
 
 /* ================================================================
    UTILITÁRIOS
@@ -705,6 +756,7 @@ const Form = (() => {
       prioridade: tipo === "pdi" ? null : fd.get("prioridade"),
       criterioPrioridade: tipo === "pdi" ? null : (fd.get("criterioPrioridade") || "").trim(),
       resumo: resumoTxt.slice(0, 500),
+      categoria: (regraDe({ tipo, classe:detalhes.classe, empresa }) || { categoria:CATEGORIA_TRIAGEM }).categoria,
       detalhes,
       aceitePrivacidade: true,
       website: fd.get("website") || "" // campo-armadilha: o fluxo descarta se vier preenchido
@@ -787,7 +839,9 @@ const Form = (() => {
 const Painel = (() => {
   const S = { items:[], equipe:[], demo:false, conta:null, modo:"lista", kpi:null, sort:{ k:"sla", dir:1 }, abertoId:null, carregado:false };
   let msalApp = null;
-  const configurado = () => !!(CONFIG.tenantId && CONFIG.clientId && CONFIG.siteId && CONFIG.listaSolicitacoes);
+  const configurado = () => !!(CONFIG.tenantId && CONFIG.clientId && (CONFIG.siteUrl || CONFIG.siteId));
+  const RT = { siteId:"", lsol:"", lint:"" }; // IDs resolvidos na conexão
+  let timer = null;
   const SCOPES = ["User.Read","Sites.ReadWrite.All"];
 
   /* ---------- autenticação ---------- */
@@ -811,7 +865,7 @@ const Painel = (() => {
     if (S.carregado) return;
     if (!configurado()){
       $("#btn-login").disabled = true;
-      $("#gate-msg").textContent = "O painel ainda não está configurado: faltam os dados do registro de aplicativo e das listas (pedidos P03 e P04 à TI). Enquanto isso, veja a demonstração com dados fictícios.";
+      $("#gate-msg").textContent = "O painel ainda não está configurado: faltam tenantId, clientId e siteUrl em CONFIG (pedidos P03 e P04 à TI). Enquanto isso, veja a demonstração com dados fictícios.";
       return;
     }
     const app = msalInit(); if (!app) return;
@@ -839,22 +893,43 @@ const Painel = (() => {
     }
     return out;
   }
-  const L = () => `/sites/${CONFIG.siteId}/lists/${CONFIG.listaSolicitacoes}`;
-  const LI = () => `/sites/${CONFIG.siteId}/lists/${CONFIG.listaInteracoes}`;
+  const L = () => `/sites/${RT.siteId}/lists/${RT.lsol}`;
+  const LI = () => `/sites/${RT.siteId}/lists/${RT.lint}`;
+  async function conectar(){
+    if (CONFIG.siteId) RT.siteId = CONFIG.siteId;
+    else {
+      let u; try { u = new URL(CONFIG.siteUrl); } catch(e){ throw new Error("CONFIG.siteUrl não é um endereço válido."); }
+      RT.siteId = (await graph(`/sites/${u.hostname}:${u.pathname.replace(/\/$/,"")}?$select=id`)).id;
+    }
+    RT.lsol = CONFIG.listaSolicitacoes; RT.lint = CONFIG.listaInteracoes;
+    if (!RT.lsol || !RT.lint){
+      const ls = await graphAll(`/sites/${RT.siteId}/lists?$select=id,displayName`);
+      const norm = t => String(t).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+      const achar = n => (ls.find(l => norm(l.displayName) === norm(n)) || {}).id || "";
+      RT.lsol ||= achar(CONFIG.nomeListaSolicitacoes); RT.lint ||= achar(CONFIG.nomeListaInteracoes);
+    }
+    if (!RT.lsol) throw new Error(`A lista "${CONFIG.nomeListaSolicitacoes}" não foi encontrada no site. Confira o nome em CONFIG.nomeListaSolicitacoes.`);
+  }
   function deItem(it){
     const f = it.fields || {}, o = { id: String(it.id), criado: it.createdDateTime, modificado: it.lastModifiedDateTime, modificadoPor: it.lastModifiedBy?.user?.displayName || "" };
     for (const [k, col] of Object.entries(CAMPOS)) o[k] = f[col] ?? "";
     try { o.det = o.detalhes ? JSON.parse(o.detalhes) : {}; } catch(e){ o.det = { texto:o.detalhes }; }
     return o;
   }
-  async function carregar(){
-    $("#list-view").innerHTML = `<div class="tablewrap"><div class="empty"><span class="spinner"></span> Carregando demandas</div></div>`;
+  async function carregar(silencioso=false){
+    if (!silencioso) $("#list-view").innerHTML = `<div class="tablewrap"><div class="empty"><span class="spinner"></span> Carregando demandas do SharePoint</div></div>`;
     if (S.demo){ render(); return; }
     try {
+      if (!RT.lsol) await conectar();
       const its = await graphAll(`${L()}/items?expand=fields&$top=200`);
       S.items = its.map(deItem);
-      montarEquipe(); render();
-    } catch(e){ $("#list-view").innerHTML = `<div class="notice err">${esc(e.message)}</div>`; }
+      montarEquipe(); popularResp(); render();
+      $("#sync").textContent = "Sincronizado com o SharePoint às " + new Date().toLocaleTimeString("pt-BR",{ hour:"2-digit", minute:"2-digit" });
+      $("#sync").className = "sync ok";
+    } catch(e){
+      $("#sync").textContent = "Sem conexão com o SharePoint"; $("#sync").className = "sync err";
+      if (!silencioso) $("#list-view").innerHTML = `<div class="notice err">${esc(e.message)}</div>`;
+    }
   }
   async function salvar(id, mud){
     if (S.demo){ Object.assign(S.items.find(x => x.id === id), mud, { modificado:new Date().toISOString(), modificadoPor:"Você (demonstração)" }); return; }
@@ -875,7 +950,7 @@ const Painel = (() => {
   }
   async function interacoes(item){
     if (S.demo) return item._hist || [];
-    if (!CONFIG.listaInteracoes) return [];
+    if (!RT.lint) return [];
     const its = await graphAll(`${LI()}/items?expand=fields&$filter=fields/${CAMPOS_INT.solicitacaoId} eq ${Number(item.id)}&$top=200`, { headers:{ Prefer:"HonorNonIndexedQueriesWarningMayFailRandomly" } }).catch(() => []);
     return its.map(i => ({ quando:i.createdDateTime, tipo:i.fields[CAMPOS_INT.tipo], msg:i.fields[CAMPOS_INT.mensagem], autor:i.fields[CAMPOS_INT.autor] || i.createdBy?.user?.displayName }))
       .sort((a,b) => new Date(b.quando) - new Date(a.quando));
@@ -883,7 +958,7 @@ const Painel = (() => {
   async function enviarMensagem(item, texto){
     const autor = S.conta?.name || "DHO";
     if (S.demo){ (item._hist ||= []).unshift({ quando:new Date().toISOString(), tipo:"Mensagem DHO", msg:texto, autor }); return; }
-    if (!CONFIG.listaInteracoes) throw new Error("Lista Interações não configurada (CONFIG.listaInteracoes).");
+    if (!RT.lint) throw new Error(`A lista "${CONFIG.nomeListaInteracoes}" não foi encontrada no site.`);
     await graph(`${LI()}/items`, { method:"POST", body: JSON.stringify({ fields:{
       [CAMPOS_INT.protocolo]: item.protocolo, [CAMPOS_INT.solicitacaoId]: Number(item.id), [CAMPOS_INT.tipo]:"Mensagem DHO", [CAMPOS_INT.mensagem]: texto, [CAMPOS_INT.autor]: autor } }) });
   }
@@ -904,6 +979,8 @@ const Painel = (() => {
     if (d === 1) return { cls:"warn", txt:"Vence amanhã", ord:1 };
     return { cls:"ok", txt:`${d} dias úteis`, ord:d };
   }
+  const critPill = c => c ? `<span class="crit crit-${CONFIG.criticidades.indexOf(c)+1}">${esc(c)}</span>` : "";
+  const dDe = i => ({ id:i.id, tipo:i.tipo, classe:(i.det||{}).classe, empresa:i.empresa });
   const tipoRot = k => TIPOS[k]?.rotulo || k || "Não informado";
 
   /* ---------- filtros ---------- */
@@ -924,12 +1001,15 @@ const Painel = (() => {
       if (rp && rp !== "_sem" && i.respNome !== rp) return false;
       if (em && (em === "Outra" ? ["V.tal","Tecto","Nio"].includes(i.empresa) : i.empresa !== em)) return false;
       if (tp && i.tipo !== tp) return false;
+      const cr = $("#f-crit").value;
+      if (cr === "_sem" && i.criticidade) return false;
+      if (cr && cr !== "_sem" && i.criticidade !== cr) return false;
       if (S.kpi && !KPIS.find(k => k.k === S.kpi).f(i)) return false;
       if (q && ![i.protocolo,i.solNome,i.solEmail,i.area,i.resumo,i.empresa,i.respNome].join(" ").toLowerCase().includes(q)) return false;
       return true;
     });
     const k = S.sort.k, d = S.sort.dir;
-    const val = i => k === "sla" ? slaInfo(i).ord : k === "criado" ? new Date(i.criado).getTime() : k === "prioridade" ? (PRIORIDADES.indexOf(i.prioridade)+1 || 9) : String(i[k] || "").toLowerCase();
+    const val = i => k === "sla" ? slaInfo(i).ord : k === "criticidade" ? (CONFIG.criticidades.indexOf(i.criticidade)+1 || 99) : k === "criado" ? new Date(i.criado).getTime() : k === "prioridade" ? (PRIORIDADES.indexOf(i.prioridade)+1 || 9) : String(i[k] || "").toLowerCase();
     r.sort((a,b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * d);
     return r;
   }
@@ -938,6 +1018,7 @@ const Painel = (() => {
   function popularFiltros(){
     $("#f-status").innerHTML = `<option value="_abertas">Em aberto</option><option value="">Todos os status</option>` + STATUS.map(s => `<option>${s}</option>`).join("");
     $("#f-tipo").innerHTML = `<option value="">Todos os tipos</option>` + Object.entries(TIPOS).map(([k,t]) => `<option value="${k}">${esc(t.rotulo)}</option>`).join("");
+    $("#f-crit").innerHTML = `<option value="">Todas as criticidades</option>` + CONFIG.criticidades.map(c => `<option>${esc(c)}</option>`).join("") + `<option value="_sem">Sem criticidade</option>`;
     popularResp();
   }
   function popularResp(){
@@ -955,22 +1036,23 @@ const Painel = (() => {
   const optsResp = sel => `<option value="">Sem responsável</option>` + S.equipe.map(p => `<option ${p.nome===sel?"selected":""}>${esc(p.nome)}</option>`).join("");
   function renderLista(r){
     const th = (k,l) => `<th data-sort="${k}" ${S.sort.k===k?`aria-sort="${S.sort.dir>0?"ascending":"descending"}"`:""}>${l}${S.sort.k===k?(S.sort.dir>0?" ↑":" ↓"):""}</th>`;
-    $("#list-view").innerHTML = `<div class="tablewrap"><table class="grid"><thead><tr>${th("protocolo","Protocolo")}${th("tipo","Tipo")}${th("solNome","Solicitante")}${th("respNome","Responsável")}${th("status","Status")}${th("sla","SLA da análise")}${th("prioridade","Prioridade")}${th("criado","Recebida")}</tr></thead><tbody>${
+    $("#list-view").innerHTML = `<div class="tablewrap"><table class="grid"><thead><tr>${th("protocolo","Protocolo")}${th("tipo","Tipo")}${th("solNome","Solicitante")}${th("respNome","Responsável")}${th("status","Status")}${th("sla","SLA da análise")}${th("criticidade","Criticidade")}${th("prioridade","Prioridade")}${th("criado","Recebida")}</tr></thead><tbody>${
       r.length ? r.map(i => { const s = slaInfo(i); return `<tr data-id="${i.id}" class="${S.abertoId===i.id?"sel":""}">
-        <td class="proto-cell">${esc(i.protocolo)}</td>
+        <td class="proto-cell">${esc(i.protocolo)}${i.linkEntregavel?`<div><a class="lnk" href="${esc(i.linkEntregavel)}" target="_blank" rel="noopener">Entregável</a></div>`:""}</td>
         <td class="c-tipo">${esc(tipoRot(i.tipo))}<div class="sub">${esc(String(i.resumo||"").slice(0,70))}${(i.resumo||"").length>70?"…":""}</div></td>
         <td class="c-sol">${esc(i.solNome)}<div class="sub">${esc(i.empresa)}${i.area?", "+esc(i.area):""}</div></td>
         <td><select class="inl resp" data-inl="respNome" aria-label="Responsável de ${esc(i.protocolo)}">${optsResp(i.respNome)}</select></td>
         <td><select class="inl pill ${stClass(i.status)}" data-inl="status" aria-label="Status de ${esc(i.protocolo)}">${optsStatus(i.status)}</select></td>
         <td><span class="sla ${s.cls}">${s.txt}</span>${STATUS_PRE_ANALISE.includes(i.status)&&i.sla?`<div class="sub">até ${fmtDate(i.sla)}</div>`:""}</td>
+        <td>${critPill(i.criticidade) || `<span class="sub" style="white-space:nowrap">Não definida</span>`}</td>
         <td><span class="prio ${i.prioridade===PRIORIDADES[0]?"p1":""}">${esc(i.prioridade || (i.tipo==="pdi" ? (i.faixa||"PDI") : "Não informada"))}</span></td>
         <td class="sub">${fmtDate(new Date(i.criado))}</td></tr>`; }).join("")
-      : `<tr><td colspan="8"><div class="empty">Nenhuma demanda com estes filtros. Limpe a busca ou escolha outro status.</div></td></tr>`
+      : `<tr><td colspan="9"><div class="empty">Nenhuma demanda com estes filtros. Limpe a busca ou escolha outro status.</div></td></tr>`
     }</tbody></table></div>`;
   }
   function renderQuadro(r){
     const cols = STATUS.filter(s => $("#f-status").value === "_abertas" ? !STATUS_FINAIS.includes(s) : true);
-    $("#board-view").innerHTML = `<div class="board">${cols.map(s => { const its = r.filter(i => i.status === s); return `<div class="col" data-status="${esc(s)}"><h3>${esc(s)} <span>${its.length}</span></h3>${its.map(i => { const sl = slaInfo(i); return `<div class="card" draggable="true" data-id="${i.id}"><div class="top"><b>${esc(i.protocolo)}</b>${sl.cls!=="fin"?`<span class="sla ${sl.cls}">${sl.txt}</span>`:""}</div><div class="ti">${esc(tipoRot(i.tipo))}</div><div class="sub">${esc(i.solNome)}, ${esc(i.empresa)}</div><div class="sub">${i.respNome?esc(i.respNome):"Sem responsável"}</div></div>`; }).join("")}</div>`; }).join("")}</div>`;
+    $("#board-view").innerHTML = `<div class="board">${cols.map(s => { const its = r.filter(i => i.status === s); return `<div class="col" data-status="${esc(s)}"><h3>${esc(s)} <span>${its.length}</span></h3>${its.map(i => { const sl = slaInfo(i); return `<div class="card" draggable="true" data-id="${i.id}"><div class="top"><b>${esc(i.protocolo)}</b>${sl.cls!=="fin"?`<span class="sla ${sl.cls}">${sl.txt}</span>`:""}</div><div class="ti">${esc(tipoRot(i.tipo))}</div><div class="sub">${esc(i.solNome)}, ${esc(i.empresa)}</div><div class="sub">${i.respNome?esc(i.respNome):"Sem responsável"}</div>${i.criticidade||i.linkEntregavel?`<div class="top" style="justify-content:flex-start">${critPill(i.criticidade)}${i.linkEntregavel?`<a class="lnk" href="${esc(i.linkEntregavel)}" target="_blank" rel="noopener">Entregável</a>`:""}</div>`:""}</div>`; }).join("")}</div>`; }).join("")}</div>`;
   }
 
   /* ---------- alterações rápidas ---------- */
@@ -982,7 +1064,7 @@ const Painel = (() => {
       toast("Registre o motivo ou a nota de encerramento antes de salvar.");
       render(); return;
     }
-    try { await salvar(id, mud); toast(msgOk || "Alteração salva."); }
+    try { await salvar(id, mud); toast((S.demo ? "" : "Salvo no SharePoint. ") + (msgOk || "")); }
     catch(e){ toast(e.message, true); }
     montarEquipe(); popularResp(); render();
     if (S.abertoId === id) abrirGaveta(id);
@@ -990,11 +1072,12 @@ const Painel = (() => {
   const avisoEmail = mud => mud.status ? " O solicitante será avisado por e-mail." : mud.respNome ? " O novo responsável será avisado por e-mail." : "";
 
   /* ---------- gaveta de detalhes ---------- */
-  const ROTULOS_DET = { classe:"Alcance", titulo:"Tema", objetivo:"Objetivo", meta:"Meta ou indicador", publico:"Público", quantidade:"Pessoas", formato:"Formato preferido", dataDesejada:"Data desejada", especialista:"Especialista", especialistaEmail:"E-mail do especialista", linkInsumos:"Materiais de apoio", contexto:"Contexto", prazo:"Prazo", plataforma:"Plataforma", afetados:"Pessoas afetadas", descricao:"Descrição", item:"Item", treinamento:"Treinamento", periodo:"Período", gestorContrato:"Gestor do contrato", terceiroNome:"Terceiro", terceiroIdentificacao:"Identificação", justificativa:"Justificativa", inicio:"Início do acesso", fim:"Fim do acesso", centroCusto:"Centro de custo", curso:"Curso", instituicao:"Instituição", cargaHoraria:"Carga horária", valor:"Valor", dataInicio:"Início do curso", formaPagamento:"Pagamento", vinculoPDI:"Vínculo com o PDI", gestorNome:"Gestor direto", gestorEmail:"E-mail do gestor", eleg6m:"6 meses de empresa", elegPDI:"PDI formalizado", elegDesemp:"Desempenho no esperado", elegObrig:"Sem obrigatórios pendentes", cienteConcessao:"Ciente da concessão" };
+  const ROTULOS_DET = { classe:"Tema do treinamento", titulo:"Título", objetivo:"Objetivo", meta:"Meta ou indicador", publico:"Público", quantidade:"Pessoas", formato:"Formato preferido", dataDesejada:"Data desejada", especialista:"Especialista", especialistaEmail:"E-mail do especialista", linkInsumos:"Materiais de apoio", contexto:"Contexto", prazo:"Prazo", plataforma:"Plataforma", afetados:"Pessoas afetadas", descricao:"Descrição", item:"Item", treinamento:"Treinamento", periodo:"Período", gestorContrato:"Gestor do contrato", terceiroNome:"Terceiro", terceiroIdentificacao:"Identificação", justificativa:"Justificativa", inicio:"Início do acesso", fim:"Fim do acesso", centroCusto:"Centro de custo", curso:"Curso", instituicao:"Instituição", cargaHoraria:"Carga horária", valor:"Valor", dataInicio:"Início do curso", formaPagamento:"Pagamento", vinculoPDI:"Vínculo com o PDI", gestorNome:"Gestor direto", gestorEmail:"E-mail do gestor", eleg6m:"6 meses de empresa", elegPDI:"PDI formalizado", elegDesemp:"Desempenho no esperado", elegObrig:"Sem obrigatórios pendentes", cienteConcessao:"Ciente da concessão" };
   function valDet(k, v){
     if (v === true) return "Sim"; if (v === false) return "Não";
     if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return fmtDate(v);
     if (k === "valor") return brl(v);
+    if (k === "classe") return esc(CLASSES[v] || v);
     if (/^https?:\/\//.test(v)) return `<a href="${esc(v)}" target="_blank" rel="noopener">${esc(v)}</a>`;
     return esc(v);
   }
@@ -1002,6 +1085,7 @@ const Painel = (() => {
     const i = S.items.find(x => x.id === id); if (!i) return;
     S.abertoId = id;
     const v = { ...i, ...pre };
+    const reg = responsavelPelaRegra(dDe(i), S.items);
     const det = Object.entries(i.det || {}).filter(([,x]) => x !== "" && x !== null).map(([k,x]) => `<dt>${esc(ROTULOS_DET[k]||k)}</dt><dd>${valDet(k,x)}</dd>`).join("");
     $("#drawer-root").innerHTML = `<div class="scrim" data-close></div>
     <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="dw-t">
@@ -1012,6 +1096,8 @@ const Painel = (() => {
             <div class="field"><label for="g_status">Status</label><select id="g_status" name="status">${optsStatus(v.status)}</select></div>
             <div class="field"><label for="g_resp">Responsável</label><select id="g_resp" name="respNome">${optsResp(v.respNome)}</select></div>
           </div>
+          <input type="hidden" name="categoria" value="${esc(v.categoria)}">
+          <div class="regra">Distribuição: <b>${esc(reg.categoria)}</b>${reg.pessoa ? `. Pela regra, ${esc(reg.pessoa.nome)}${reg.rodizio ? " (rodízio)" : ""}.` : ". Sem regra automática: defina o responsável."}${reg.pessoa && reg.pessoa.nome !== v.respNome ? ` <button type="button" class="btn small ghost" id="btn-regra">Aplicar regra</button>` : ""}</div>
           <div class="row2">
             <div class="field"><label for="g_backup">Backup</label><select id="g_backup" name="backup">${optsResp(v.backup).replace("Sem responsável","Sem backup")}</select></div>
             <div class="field"><label for="g_sla">Prazo da análise inicial</label><input id="g_sla" name="sla" type="date" value="${esc(String(v.sla||"").slice(0,10))}"></div>
@@ -1025,6 +1111,12 @@ const Painel = (() => {
           <div class="field" id="w_prev"><label for="g_prev">Previsão de entrega</label><input id="g_prev" name="previsao" type="date" value="${esc(String(v.previsao||"").slice(0,10))}"></div>
           <div class="field" id="w_nota"><label for="g_nota">Nota de encerramento ou motivo</label><textarea id="g_nota" name="nota" style="min-height:64px">${esc(v.nota)}</textarea><div class="hint">Obrigatória para Concluída, Encaminhada para outra solução e Cancelada. Vai no e-mail ao solicitante.</div></div>
           <div class="field"><label for="g_obs">Observações internas</label><textarea id="g_obs" name="obs" style="min-height:64px">${esc(v.obs)}</textarea><div class="hint">Visíveis só para o time de DHO.</div></div>
+        </div>
+        <div class="sect"><h3>Entrega</h3>
+          <div class="row2">
+            <div class="field"><label for="g_criticidade">Criticidade</label><select id="g_criticidade" name="criticidade"><option value="">Não definida</option>${CONFIG.criticidades.map(c => `<option ${c===v.criticidade?"selected":""}>${esc(c)}</option>`).join("")}</select><div class="hint">Avaliação do DHO sobre o impacto da demanda.</div></div>
+            <div class="field"><label for="g_link">Link do entregável no SharePoint</label><input id="g_link" name="linkEntregavel" type="url" placeholder="https://…sharepoint.com/…" value="${esc(v.linkEntregavel)}"><div class="hint">${v.linkEntregavel ? `<a href="${esc(v.linkEntregavel)}" target="_blank" rel="noopener">Abrir entregável</a>` : "Pasta ou arquivo no SharePoint do time."}</div></div>
+          </div>
         </div>
         <div class="sect"><h3>Solicitante</h3>
           <div class="row2">
@@ -1057,7 +1149,7 @@ const Painel = (() => {
     if (Object.keys(pre).length) marcar();
     function diff(){
       const m = {};
-      ["status","respNome","backup","sla","prioridade","desfecho","criterio","pendencia","previsao","nota","obs","solNome","solEmail","empresa","area","resumo"].forEach(k => {
+      ["status","respNome","backup","categoria","criticidade","linkEntregavel","sla","prioridade","desfecho","criterio","pendencia","previsao","nota","obs","solNome","solEmail","empresa","area","resumo"].forEach(k => {
         const el = f.elements[k]; if (!el) return;
         const atual = (k === "sla" || k === "previsao") ? String(i[k]||"").slice(0,10) : String(i[k] ?? "");
         if (el.value !== atual) m[k] = el.value;
@@ -1073,11 +1165,13 @@ const Painel = (() => {
       const st = m.status || i.status;
       if (STATUS_FINAIS.includes(st) && !$("#g_nota").value.trim()){ toast("Preencha a nota de encerramento ou o motivo.", true); $("#g_nota").focus(); return; }
       if (st === "Aguardando solicitante" && !$("#g_pend").value.trim()){ toast("Descreva o que falta do solicitante.", true); $("#g_pend").focus(); return; }
+      const lk = $("#g_link").value.trim();
+      if (lk && !/^https:\/\/[^/]+\.sharepoint\.com\//i.test(lk)){ toast("O link do entregável precisa ser do SharePoint (https://….sharepoint.com/…).", true); $("#g_link").focus(); return; }
       if (st === "Encaminhada para outra solução" && !$("#g_desf").value){ toast("Indique o desfecho da análise.", true); $("#g_desf").focus(); return; }
       if (m.respNome !== undefined){ const p = S.equipe.find(p => p.nome === m.respNome); m.respEmail = p ? (p.email||"") : ""; }
       if (m.sla === "") m.sla = null;
       const btn = $("#btn-salvar"); btn.disabled = true; btn.textContent = "Salvando";
-      try { await salvar(id, m); toast("Alterações salvas." + avisoEmail(m)); montarEquipe(); popularResp(); render(); abrirGaveta(id); }
+      try { await salvar(id, m); toast((S.demo ? "Alterações salvas (demonstração)." : "Alterações salvas no SharePoint.") + avisoEmail(m)); montarEquipe(); popularResp(); render(); abrirGaveta(id); }
       catch(e){ toast(e.message, true); btn.disabled = false; btn.textContent = "Salvar alterações"; render(); }
     });
     $("#btn-msg").addEventListener("click", async () => {
@@ -1086,6 +1180,8 @@ const Painel = (() => {
       try { await enviarMensagem(i, t); $("#g_msg").value = ""; toast(S.demo ? "Mensagem registrada (demonstração, nenhum e-mail enviado)." : "Mensagem registrada. O e-mail sai pela caixa do DHO em instantes."); hist(); }
       catch(e){ toast(e.message, true); } finally { b.disabled = false; }
     });
+    $("#btn-regra")?.addEventListener("click", () => { $("#g_resp").value = reg.pessoa.nome; f.elements.categoria.value = reg.categoria; f.dispatchEvent(new Event("change")); });
+    if (!i.categoria && reg.categoria) f.elements.categoria.value = reg.categoria;
     document.addEventListener("keydown", escFechar);
     $("#g_status").focus();
     render();
@@ -1098,10 +1194,28 @@ const Painel = (() => {
   function escFechar(e){ if (e.key === "Escape") $("#drawer-root [data-close]")?.click(); }
   function fechar(){ $("#drawer-root").innerHTML = ""; S.abertoId = null; document.removeEventListener("keydown", escFechar); render(); }
 
+  /* ---------- distribuição em lote ---------- */
+  async function distribuir(){
+    const pend = S.items.filter(i => !i.respNome && !STATUS_FINAIS.includes(i.status)).sort((a,b) => new Date(a.criado) - new Date(b.criado));
+    const comRegra = pend.filter(i => regraDe(dDe(i)));
+    if (!pend.length){ toast("Todas as demandas em aberto já têm responsável."); return; }
+    if (!comRegra.length){ toast(`${pend.length} sem responsável, todas sem regra automática: defina manualmente.`); return; }
+    if (!confirm(`Distribuir ${comRegra.length} ${comRegra.length===1?"demanda":"demandas"} pela regra? Cada responsável recebe e-mail.`)) return;
+    let ok = 0;
+    for (const i of comRegra){
+      const r = responsavelPelaRegra(dDe(i), S.items);
+      try { await salvar(i.id, { respNome:r.pessoa.nome, respEmail:r.pessoa.email, categoria:r.categoria }); ok++; }
+      catch(e){ toast(e.message, true); break; }
+    }
+    const sem = pend.length - comRegra.length;
+    toast(`${ok} ${ok===1?"demanda distribuída":"demandas distribuídas"}${S.demo?"":" e salvas no SharePoint"}.${sem?` ${sem} sem regra ${sem===1?"continua":"continuam"} em triagem.`:""}`);
+    montarEquipe(); popularResp(); render();
+  }
+
   /* ---------- CSV ---------- */
   function csv(){
     const r = filtrados();
-    const cols = [["protocolo","Protocolo"],["tipo","Tipo"],["status","Status"],["respNome","Responsável"],["solNome","Solicitante"],["solEmail","E-mail"],["empresa","Empresa"],["area","Área"],["prioridade","Prioridade"],["sla","Prazo análise"],["desfecho","Desfecho"],["criado","Recebida"],["resumo","Resumo"]];
+    const cols = [["protocolo","Protocolo"],["tipo","Tipo"],["status","Status"],["respNome","Responsável"],["solNome","Solicitante"],["solEmail","E-mail"],["empresa","Empresa"],["area","Área"],["prioridade","Prioridade"],["sla","Prazo análise"],["desfecho","Desfecho"],["categoria","Categoria"],["criticidade","Criticidade"],["linkEntregavel","Entregável"],["criado","Recebida"],["resumo","Resumo"]];
     const q = s => `"${String(s ?? "").replace(/"/g,'""')}"`;
     const lines = [cols.map(c => q(c[1])).join(";")].concat(r.map(i => cols.map(([k]) => q(k==="tipo"?tipoRot(i.tipo):k==="criado"?fmtDate(new Date(i.criado)):k==="sla"?fmtDate(i.sla):i[k])).join(";")));
     const a = document.createElement("a");
@@ -1113,12 +1227,15 @@ const Painel = (() => {
   async function abrir(){
     $("#gate").classList.add("hidden"); $("#app").classList.remove("hidden");
     $("#demo-banner").classList.toggle("hidden", !S.demo);
-    $("#who").textContent = S.demo ? "Demonstração" : (S.conta?.name || S.conta?.username || "");
+    $("#who").textContent = S.demo ? "" : (S.conta?.name || S.conta?.username || "");
     $("#btn-logout").classList.toggle("hidden", S.demo);
     S.carregado = true;
-    if (S.demo) montarEquipe();
+    if (S.demo){ montarEquipe(); $("#sync").textContent = "Demonstração, sem conexão"; $("#sync").className = "sync"; }
     popularFiltros();
     await carregar();
+    clearInterval(timer);
+    if (!S.demo && CONFIG.atualizarACadaSegundos > 0)
+      timer = setInterval(() => { if (!S.abertoId && !document.hidden) carregar(true); }, CONFIG.atualizarACadaSegundos * 1000);
   }
   function demo(){
     S.demo = true; S.items = dadosDemo(); abrir();
@@ -1134,13 +1251,14 @@ const Painel = (() => {
     $("#btn-logout").addEventListener("click", () => msalApp?.logoutRedirect({ postLogoutRedirectUri: location.origin + location.pathname + "#painel" }));
     $("#btn-reload").addEventListener("click", () => { if (S.demo) toast("Na demonstração os dados não vêm do SharePoint."); else carregar(); });
     $("#btn-csv").addEventListener("click", csv);
-    ["#f-q","#f-status","#f-resp","#f-emp","#f-tipo"].forEach(s => $(s).addEventListener(s === "#f-q" ? "input" : "change", render));
+    $("#btn-dist").addEventListener("click", distribuir);
+    ["#f-q","#f-status","#f-resp","#f-emp","#f-tipo","#f-crit"].forEach(s => $(s).addEventListener(s === "#f-q" ? "input" : "change", render));
     $("#kpis").addEventListener("click", e => { const b = e.target.closest(".kpi"); if (!b) return; S.kpi = S.kpi === b.dataset.k ? null : b.dataset.k; if (S.kpi && $("#f-status").value === "_abertas" && b.dataset.k === "concluidas") $("#f-status").value = ""; render(); });
     $$(".seg button").forEach(b => b.addEventListener("click", () => { S.modo = b.dataset.mode; $$(".seg button").forEach(x => x.setAttribute("aria-pressed", x === b)); $("#list-view").classList.toggle("hidden", S.modo !== "lista"); $("#board-view").classList.toggle("hidden", S.modo !== "quadro"); render(); }));
     // lista: ordenação, edição rápida, abrir gaveta
     $("#list-view").addEventListener("click", e => {
       const th = e.target.closest("th[data-sort]"); if (th){ const k = th.dataset.sort; S.sort = { k, dir: S.sort.k === k ? -S.sort.dir : 1 }; render(); return; }
-      if (e.target.closest("select")) return;
+      if (e.target.closest("select") || e.target.closest("a")) return;
       const tr = e.target.closest("tr[data-id]"); if (tr) abrirGaveta(tr.dataset.id);
     });
     $("#list-view").addEventListener("change", e => {
@@ -1159,30 +1277,35 @@ const Painel = (() => {
 
   /* ---------- dados fictícios da demonstração ---------- */
   function dadosDemo(){
-    const eq = [{ nome:"Analista DHO 1", email:"" },{ nome:"Analista DHO 2", email:"" },{ nome:"Especialista DHO 1", email:"" },{ nome:"Coordenação T&D", email:"" }];
-    CONFIG.equipe = CONFIG.equipe.length ? CONFIG.equipe : eq;
     const dAtras = (n, h=10) => { const d = new Date(); d.setDate(d.getDate()-n); d.setHours(h, 12, 0, 0); return d; };
+    const R = e => { const p = pessoaPorEmail(e); return { respNome:p.nome, respEmail:p.email }; };
+    const CAM = "camilly.machado@vtal.com", ANA = "ana.oliveira@niointernet.com.br", ALI = "aline.santana@vtal.com", MIL = "mila.goes@niointernet.com.br", THA = "thamiris.costa@niointernet.com.br";
     const mk = (n, o) => {
       const criado = dAtras(o.dias);
       const sla = TIPOS[o.tipo].sla ? iso(addBizDays(criado, TIPOS[o.tipo].sla)) : "";
-      return { id:String(n), protocolo:`APR-${new Date().getFullYear()}-${String(n).padStart(4,"0")}`, criado:criado.toISOString(), modificado:dAtras(Math.max(0,o.dias-1),15).toISOString(), modificadoPor:"", origem:o.origem||"Interno", solPapel:o.papel||"Liderança ou ponto focal da área",
-        sla, backup:"", criterio:"", desfecho:"", pendencia:"", previsao:"", nota:"", obs:"", faixa:"", valor:"", prioridade:"", respEmail:"", ...o, det:o.det||{}, _hist:o.hist||[] };
+      const it = { id:String(n), protocolo:`APR-${new Date().getFullYear()}-${String(n).padStart(4,"0")}`, criado:criado.toISOString(), modificado:dAtras(Math.max(0,o.dias-1),15).toISOString(), modificadoPor:"", origem:o.origem||"Interno", solPapel:o.papel||"Liderança ou ponto focal da área",
+        sla, backup:"", criterio:"", desfecho:"", pendencia:"", previsao:"", nota:"", obs:"", faixa:"", valor:"", prioridade:"", respNome:"", respEmail:"", criticidade:"", linkEntregavel:"", ...o, det:o.det||{}, _hist:o.hist||[] };
+      it.categoria = o.categoria ?? (regraDe(dDe(it)) || { categoria:CATEGORIA_TRIAGEM }).categoria;
+      return it;
     };
+    const SP = "https://vtalcorp.sharepoint.com/teams/exemplo/Shared%20Documents/Entregaveis/";
     return [
-      mk(41,{ tipo:"desenvolvimento", dias:0, status:"Recebida", respNome:"Analista DHO 1", solNome:"Solicitante A", solEmail:"solicitante.a@exemplo.com", empresa:"Tecto", area:"Operações de data center", prioridade:"Obrigação legal ou regulatória", criterio:"Exigência de NR para a nova equipe de manutenção.", resumo:"Trilha de segurança elétrica: capacitar técnicos recém-contratados antes do início das atividades.", det:{ classe:"Legal ou regulatório (obrigatório)", titulo:"Trilha de segurança elétrica", objetivo:"Capacitar técnicos recém-contratados antes do início das atividades.", meta:"Liberação da equipe para operação", publico:"Técnicos de manutenção", quantidade:"18", formato:"Síncrono presencial", especialista:"Especialista técnico da área" } }),
-      mk(40,{ tipo:"plataforma", dias:1, status:"Em triagem", respNome:"", solNome:"Solicitante B", solEmail:"solicitante.b@exemplo.com", empresa:"Outra", area:"Fornecedor", origem:"Externo", prioridade:"Impacto operacional", resumo:"Plataforma de cursos: erro ao abrir o módulo 3.", det:{ plataforma:"Plataforma de cursos", afetados:"1", descricao:"Erro ao abrir o módulo 3." }, obs:"Domínio de e-mail não reconhecido: triagem manual." }),
-      mk(39,{ tipo:"relatorio", dias:2, status:"Recebida", respNome:"Analista DHO 2", solNome:"Solicitante C", solEmail:"solicitante.c@exemplo.com", empresa:"Nio", area:"Atendimento", prioridade:"Impacto operacional", resumo:"Relatório de participação ou conclusão: Trilha de Onboarding", det:{ item:"Relatório de participação ou conclusão", treinamento:"Trilha de Onboarding", periodo:"Agosto a outubro" } }),
-      mk(38,{ tipo:"pdi", dias:3, status:"Aguardando aprovação", respNome:"Especialista DHO 1", solNome:"Solicitante D", solEmail:"solicitante.d@exemplo.com", empresa:"V.tal", area:"Engenharia", solPapel:"Colaborador interno, para o meu PDI ou acesso às plataformas", faixa:"Faixa 3", valor:18500, resumo:"Especialização em redes ópticas (Instituição X), R$ 18.500,00", det:{ curso:"Especialização em redes ópticas", instituicao:"Instituição X", cargaHoraria:"360 h", valor:"18500", dataInicio:iso(dAtras(-45)), formaPagamento:"18 parcelas", vinculoPDI:"Competência técnica prevista no PDI para a função de engenharia.", gestorNome:"Gestor D", gestorEmail:"gestor.d@exemplo.com", eleg6m:true, elegPDI:true, elegDesemp:true, elegObrig:true, cienteConcessao:true },
+      mk(44,{ tipo:"desenvolvimento", dias:0, status:"Recebida", solNome:"Solicitante N", solEmail:"solicitante.n@exemplo.com", empresa:"V.tal", area:"Transformação", prioridade:"Projeto estratégico do grupo", resumo:"Nova ferramenta de gestão de projetos: treinar todas as lideranças.", det:{ classe:"institucional", titulo:"Ferramenta de gestão de projetos", objetivo:"Lideranças usam a ferramenta no planejamento do próximo ciclo.", publico:"Lideranças", quantidade:"300" } }),
+      mk(43,{ tipo:"lnt", dias:0, status:"Em triagem", solNome:"Solicitante O", solEmail:"solicitante.o@exemplo.com", empresa:"Tecto", area:"Comercial", prioridade:"Impacto operacional", resumo:"LNT para o time de pré-vendas.", det:{ publico:"Pré-vendas", contexto:"Time novo, com perfis variados." } }),
+      mk(41,{ tipo:"desenvolvimento", dias:0, status:"Recebida", ...R(CAM), criticidade:"Alta", solNome:"Solicitante A", solEmail:"solicitante.a@exemplo.com", empresa:"Tecto", area:"Operações de data center", prioridade:"Obrigação legal ou regulatória", criterio:"Exigência de NR para a nova equipe de manutenção.", resumo:"Trilha de segurança elétrica: capacitar técnicos recém-contratados antes do início das atividades.", det:{ classe:"legal", titulo:"Trilha de segurança elétrica", objetivo:"Capacitar técnicos recém-contratados antes do início das atividades.", meta:"Liberação da equipe para operação", publico:"Técnicos de manutenção", quantidade:"18", formato:"Síncrono presencial", especialista:"Especialista técnico da área" } }),
+      mk(40,{ tipo:"plataforma", dias:1, status:"Em triagem", ...R(ANA), solNome:"Solicitante B", solEmail:"solicitante.b@exemplo.com", empresa:"Outra", area:"Fornecedor", origem:"Externo", prioridade:"Impacto operacional", resumo:"Plataforma de cursos: erro ao abrir o módulo 3.", det:{ plataforma:"Plataforma de cursos", afetados:"1", descricao:"Erro ao abrir o módulo 3." }, obs:"Domínio de e-mail não reconhecido: confirmar vínculo." }),
+      mk(39,{ tipo:"relatorio", dias:2, status:"Recebida", ...R(ANA), solNome:"Solicitante C", solEmail:"solicitante.c@exemplo.com", empresa:"Nio", area:"Atendimento", prioridade:"Impacto operacional", resumo:"Relatório de participação ou conclusão: Trilha de Onboarding", det:{ item:"Relatório de participação ou conclusão", treinamento:"Trilha de Onboarding", periodo:"Agosto a outubro" } }),
+      mk(38,{ tipo:"pdi", dias:3, status:"Aguardando aprovação", ...R(ALI), solNome:"Solicitante D", solEmail:"solicitante.d@exemplo.com", empresa:"V.tal", area:"Engenharia", solPapel:"Colaborador interno, para o meu PDI ou acesso às plataformas", faixa:"Faixa 3", valor:18500, criticidade:"Média", resumo:"Especialização em redes ópticas (Instituição X), R$ 18.500,00", det:{ curso:"Especialização em redes ópticas", instituicao:"Instituição X", cargaHoraria:"360 h", valor:"18500", dataInicio:iso(dAtras(-45)), formaPagamento:"18 parcelas", vinculoPDI:"Competência técnica prevista no PDI para a função de engenharia.", gestorNome:"Gestor D", gestorEmail:"gestor.d@exemplo.com", eleg6m:true, elegPDI:true, elegDesemp:true, elegObrig:true, cienteConcessao:true },
         hist:[{ quando:dAtras(2,11).toISOString(), tipo:"Aprovação", msg:"Validado pelo gestor direto. Enviado para a Diretoria de DHO (faixa 3).", autor:"Fluxo F2" }] }),
-      mk(37,{ tipo:"desenvolvimento", dias:6, status:"Em análise", respNome:"Analista DHO 1", backup:"Analista DHO 2", solNome:"Solicitante E", solEmail:"solicitante.e@exemplo.com", empresa:"Nio", area:"Comercial", prioridade:"Projeto estratégico do grupo", criterio:"Lançamento de produto no próximo trimestre.", resumo:"Treinamento de produto para o time comercial.", det:{ classe:"Específico da minha área, cargo ou função", titulo:"Novo plano de fibra", objetivo:"Vendedores explicam as condições do novo plano sem consultar o material.", meta:"Meta de vendas do lançamento", publico:"Consultores comerciais", quantidade:"120", formato:"Assíncrono", especialista:"Gerente de produto" } }),
-      mk(36,{ tipo:"lnt", dias:9, status:"Aguardando solicitante", respNome:"Especialista DHO 1", solNome:"Solicitante F", solEmail:"solicitante.f@exemplo.com", empresa:"V.tal", area:"Financeiro", prioridade:"Impacto operacional", pendencia:"Lista de cargos do time e resultado da última avaliação de desempenho agregada.", resumo:"LNT para o time de contas a pagar.", det:{ publico:"Contas a pagar", contexto:"Retrabalho alto após troca de sistema." },
-        hist:[{ quando:dAtras(5,9).toISOString(), tipo:"Mensagem DHO", msg:"Para avançar, precisamos da lista de cargos do time.", autor:"Especialista DHO 1" }] }),
-      mk(35,{ tipo:"terceiro", dias:10, status:"Em execução", respNome:"Analista DHO 2", solNome:"Solicitante G", solEmail:"solicitante.g@exemplo.com", empresa:"Tecto", area:"Infraestrutura", prioridade:"Risco ao negócio", previsao:iso(dAtras(-3)), resumo:"Acesso de terceiro à trilha de segurança da informação.", det:{ gestorContrato:true, terceiroNome:"Prestador H", terceiroIdentificacao:"Empresa prestadora Y", treinamento:"Trilha de segurança da informação", justificativa:"Acesso a ambiente crítico exige a trilha.", inicio:iso(dAtras(-2)), fim:iso(dAtras(-120)), centroCusto:"CC-0000" } }),
-      mk(34,{ tipo:"desenvolvimento", dias:14, status:"Em execução", respNome:"Analista DHO 1", solNome:"Solicitante I", solEmail:"solicitante.i@exemplo.com", empresa:"V.tal", area:"Tecnologia", prioridade:"Projeto estratégico do grupo", desfecho:"Solução de aprendizagem", previsao:iso(dAtras(-20)), resumo:"Implantação de sistema corporativo: treinamento de usuários-chave." }),
-      mk(33,{ tipo:"plataforma", dias:12, status:"Recebida", respNome:"Analista DHO 2", solNome:"Solicitante J", solEmail:"solicitante.j@exemplo.com", empresa:"Nio", area:"Lojas", prioridade:"Impacto operacional", resumo:"Colaboradores sem acesso à trilha obrigatória." }),
-      mk(32,{ tipo:"desenvolvimento", dias:20, status:"Encaminhada para outra solução", respNome:"Especialista DHO 1", solNome:"Solicitante K", solEmail:"solicitante.k@exemplo.com", empresa:"Tecto", area:"Comercial", prioridade:"Impacto operacional", desfecho:"Outra ação organizacional", nota:"A causa era a falta de um checklist no processo, não de conhecimento. Encaminhado para a área de processos.", resumo:"Treinamento sobre preenchimento de propostas." }),
-      mk(31,{ tipo:"relatorio", dias:18, status:"Concluída", respNome:"Analista DHO 2", solNome:"Solicitante L", solEmail:"solicitante.l@exemplo.com", empresa:"V.tal", area:"Jurídico", prioridade:"Obrigação legal ou regulatória", nota:"Relatório enviado por e-mail.", resumo:"Relatório de conclusão da Trilha de Compliance." }),
-      mk(30,{ tipo:"lnt", dias:25, status:"Cancelada", respNome:"Especialista DHO 1", solNome:"Solicitante M", solEmail:"solicitante.m@exemplo.com", empresa:"Nio", area:"Marketing", prioridade:"Impacto operacional", nota:"Sem resposta do solicitante após o lembrete.", resumo:"LNT para o time de marketing digital." })
+      mk(37,{ tipo:"desenvolvimento", dias:6, status:"Em análise", ...R(CAM), criticidade:"Média", solNome:"Solicitante E", solEmail:"solicitante.e@exemplo.com", empresa:"Nio", area:"Comercial", prioridade:"Projeto estratégico do grupo", criterio:"Lançamento de produto no próximo trimestre.", resumo:"Treinamento de produto para o time comercial.", det:{ classe:"especifico", titulo:"Novo plano de fibra", objetivo:"Vendedores explicam as condições do novo plano sem consultar o material.", meta:"Meta de vendas do lançamento", publico:"Consultores comerciais", quantidade:"120", formato:"Assíncrono", especialista:"Gerente de produto" } }),
+      mk(36,{ tipo:"lnt", dias:9, status:"Aguardando solicitante", ...R(MIL), solNome:"Solicitante F", solEmail:"solicitante.f@exemplo.com", empresa:"V.tal", area:"Financeiro", prioridade:"Impacto operacional", pendencia:"Lista de cargos do time e resultado agregado da última avaliação de desempenho.", resumo:"LNT para o time de contas a pagar.", det:{ publico:"Contas a pagar", contexto:"Retrabalho alto após troca de sistema." },
+        hist:[{ quando:dAtras(5,9).toISOString(), tipo:"Mensagem DHO", msg:"Para avançar, precisamos da lista de cargos do time.", autor:"Mila Pena De Goes" }] }),
+      mk(35,{ tipo:"terceiro", dias:10, status:"Em execução", ...R(THA), solNome:"Solicitante G", solEmail:"solicitante.g@exemplo.com", empresa:"Tecto", area:"Infraestrutura", prioridade:"Risco ao negócio", previsao:iso(dAtras(-3)), resumo:"Acesso de terceiro à trilha de segurança da informação.", det:{ gestorContrato:true, terceiroNome:"Prestador H", terceiroIdentificacao:"Empresa prestadora Y", treinamento:"Trilha de segurança da informação", justificativa:"Acesso a ambiente crítico exige a trilha.", inicio:iso(dAtras(-2)), fim:iso(dAtras(-120)), centroCusto:"CC-0000" } }),
+      mk(34,{ tipo:"desenvolvimento", dias:14, status:"Em execução", ...R(THA), criticidade:"Alta", linkEntregavel:SP+"Implantacao-sistema", solNome:"Solicitante I", solEmail:"solicitante.i@exemplo.com", empresa:"V.tal", area:"Tecnologia", prioridade:"Projeto estratégico do grupo", desfecho:"Solução de aprendizagem", previsao:iso(dAtras(-20)), resumo:"Implantação de sistema corporativo: treinamento de usuários-chave.", det:{ classe:"institucional" } }),
+      mk(33,{ tipo:"plataforma", dias:12, status:"Recebida", ...R(ANA), solNome:"Solicitante J", solEmail:"solicitante.j@exemplo.com", empresa:"Nio", area:"Lojas", prioridade:"Impacto operacional", resumo:"Colaboradores sem acesso à trilha obrigatória." }),
+      mk(32,{ tipo:"desenvolvimento", dias:20, status:"Encaminhada para outra solução", ...R(CAM), solNome:"Solicitante K", solEmail:"solicitante.k@exemplo.com", empresa:"Tecto", area:"Comercial", prioridade:"Impacto operacional", desfecho:"Outra ação organizacional", nota:"A causa era a falta de um checklist no processo, não de conhecimento. Encaminhado para a área de processos.", resumo:"Treinamento sobre preenchimento de propostas.", det:{ classe:"especifico" } }),
+      mk(31,{ tipo:"relatorio", dias:18, status:"Concluída", ...R(ANA), criticidade:"Baixa", linkEntregavel:SP+"Relatorio-compliance.xlsx", solNome:"Solicitante L", solEmail:"solicitante.l@exemplo.com", empresa:"V.tal", area:"Jurídico", prioridade:"Obrigação legal ou regulatória", nota:"Relatório disponível no link do entregável.", resumo:"Relatório de conclusão da Trilha de Compliance." }),
+      mk(30,{ tipo:"lnt", dias:25, status:"Cancelada", ...R(MIL), solNome:"Solicitante M", solEmail:"solicitante.m@exemplo.com", empresa:"Nio", area:"Marketing", prioridade:"Impacto operacional", nota:"Sem resposta do solicitante após o lembrete.", resumo:"LNT para o time de marketing digital." })
     ];
   }
 
